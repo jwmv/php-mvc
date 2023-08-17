@@ -6,59 +6,134 @@ use PDO, Exception;
 
 class QueryBuilder
 {
-    // MySQL 컨트롤을 위해 PDO 사용
-    // php.ini 에서 extension=pdo_mysql 활성화 되어 있는 지 확인 필요
+    /**
+     * MySQL 컨트롤을 위해 PDO 사용
+     * php.ini 에서 extension=pdo_mysql 활성화 되어 있는 지 확인 필요
+     *
+     * @var PDO
+     */
     private PDO $pdo;
 
-    // 현재 실행중인 쿼리
+    /**
+     * 현재 실행중인 쿼리
+     *
+     * @var string
+     */
     private string $inProgressQuery;
 
-    // 쿼리 실행 전 호출한 모든 함수
+    /**
+     * 쿼리 실행 전 호출한 모든 함수
+     *
+     * @var array
+     */
     private array $callFunctionLog;
 
-    // 테이블 이름
+    /**
+     * 테이블 이름
+     *
+     * @var string
+     */
     private string $table;
 
-    // 쿼리 실행 시, JOIN 영역에 들어갈 문자열
+    /**
+     * 쿼리 실행 시, JOIN 영역에 들어갈 문자열
+     *
+     * @var string
+     */
     private string $join = '';
 
-    // 쿼리 실행 시, SELECT 칼럼 영역에 들어갈 문자열
+    /**
+     * 쿼리 실행 시, SELECT 칼럼 영역에 들어갈 문자열
+     *
+     * @var string
+     */
     private string $select;
 
-    // 쿼리 실행 시, GROUP BY 칼럼 영역에 들어갈 문자열
+    /**
+     * 쿼리 실행 시, GROUP BY 칼럼 영역에 들어갈 문자열
+     *
+     * @var string
+     */
     private string $groupByColumn;
 
-    // 쿼리 실행 시, WHERE 조건절에 들어갈 문자열
-    // whereMaker() 에서 만들어진 쿼리 문자열
+    /**
+     * 쿼리 실행 시, WHERE 조건절에 들어갈 문자열
+     * $this->whereMaker() 에서 만들어진 쿼리 문자열
+     *
+     * @var string
+     */
     private string $where = '';
 
-    // WHERE 조건 중, PASSWORD 옵션을 받은 경우 동일하게 암호화하여 비교가 불가하므로
-    // 우선 검색 후 추후 비교할 Password 칼럼 및 값
+    /**
+     * WHERE 조건 중, PASSWORD 옵션을 받은 경우 동일하게 암호화하여 비교가 불가하므로
+     * 우선 SELECT 검색 후 비교 할 Password 칼럼
+     *
+     * @var string
+     */
     private string $wherePasswordColumn = '';
+
+    /**
+     * WHERE 조건 중, PASSWORD 옵션을 받은 경우 동일하게 암호화하여 비교가 불가하므로
+     * 우선 SELECT 검색 후 비교 할 Password 값
+     *
+     * @var string
+     */
     private string $wherePasswordValue = '';
 
-    // 쿼리 실행 시, INSERT / UPDATE / UPSERT 에서 SET 영역에 들어갈 문자열
+    /**
+     * 쿼리 실행 시, INSERT / UPDATE / UPSERT 에서 SET 영역에 들어갈 문자열
+     *
+     * @var string
+     */
     private string $set = '';
 
-    // 쿼리 실행 시, UPSERT 에서 ON DUPLICATE KEY UPDATE 영역에 들어갈 문자열
+    /**
+     * 쿼리 실행 시, UPSERT 에서 ON DUPLICATE KEY UPDATE 영역에 들어갈 문자열
+     *
+     * @var string
+     */
     private string $upsertSet = '';
 
-    // 쿼리 실행 시, Prepared 된 키 값과 바인딩 될 값
+    /**
+     * 쿼리 실행 시, Prepared 된 키 값과 바인딩 될 값
+     *
+     * @var array
+     */
     private array $param = [];
 
-    // 쿼리 실행 시, HAVING 영역에 들어갈 문자열
+    /**
+     * 쿼리 실행 시, HAVING 영역에 들어갈 문자열
+     *
+     * @var string
+     */
     private string $having;
 
-    // 쿼리 실행 시, ORDER BY 영역에 들어갈 문자열
+    /**
+     * 쿼리 실행 시, ORDER BY 영역에 들어갈 문자열
+     *
+     * @var string
+     */
     private string $orderBy = '';
 
-    // 쿼리 실행 시, LIMIT 영역에 들어갈 문자열
+    /**
+     * 쿼리 실행 시, LIMIT 영역에 들어갈 문자열
+     *
+     * @var string
+     */
     private string $limit;
 
-    // 쿼리 실행 시, OFFSET 영역에 들어갈 문자열
+    /**
+     * 쿼리 실행 시, OFFSET 영역에 들어갈 문자열
+     *
+     * @var string
+     */
     private string $offset;
 
-    // 조건 연산자로 사용 할 수 있는 값
+    /**
+     * 조건 연산자로 사용 할 수 있는 값
+     *
+     * @var array
+     */
     private const USABLE_CONDITION = [
         '>', '>=', '=', '!=', '<=', '<',
         'IN', 'NOT IN',
@@ -67,14 +142,22 @@ class QueryBuilder
         'LIKE', 'NOT LIKE'
     ];
 
-    // JOIN 타입으로 사용 가능한 값
+    /**
+     * JOIN 타입으로 사용 가능한 값
+     *
+     * @var array
+     */
     private const USABLE_JOIN = [
         'INNER',
         'LEFT',
         'RIGHT'
     ];
 
-    // TODO: 칼럼 CRUD 작업 시, 적용할 수 있는 옵션 값
+    /**
+     * WHERE 조건에서 값에 부여하는 옵션 종류
+     *
+     * @var array
+     */
     private const USABLE_OPTION = [
         'PASSWORD',
         'NUMBER',
@@ -93,6 +176,7 @@ class QueryBuilder
 
     /**
      * 쿼리 실행 시, 사용 할 테이블 이름 적용
+     *
      * @param string $table 테이블 이름
      * @return $this 메소드 체인으로 사용 가능
      */
@@ -139,7 +223,7 @@ class QueryBuilder
     private function optionalValue(mixed $value): false|array
     {
         $result = false;
-        if (is_array($value) && count($value) === 2 && !empty($value[1]) && in_array(strtoupper($value[1]), self::USABLE_OPTION)) {
+        if (is_array($value) && count($value) === 2 && in_array(strtoupper($value[1]), self::USABLE_OPTION)) {
             $result = [
                 'value' => $value[0],
                 'option' => $value[1]
@@ -155,7 +239,7 @@ class QueryBuilder
      * @param string $leftCondition WHERE 에서 왼쪽 조건, 보통은 칼럼 이름
      * @param string $operator 조건 연산자
      * @param int|string|array|null $rightCondition WHERE 에서 오른쪽 조건
-     * @param string $combinators AND, OR, END OR 사용 가능, 보통은 AND, OR 사용한 경우 END OR 필요
+     * @param string $combinators AND, OR, END OR 사용 가능, OR 사용한 경우 END OR 필요
      * @return string
      * @throws Exception
      */
@@ -233,7 +317,41 @@ class QueryBuilder
                             $this->wherePasswordColumn = $leftCondition;
                             $this->wherePasswordValue = $optionalValue['value'];
                             break;
-                        default:
+                        case 'NUMBER':
+                            if (!is_numeric($optionalValue['value'])) {
+                                throw new Exception($optionalValue['value'] . ' 는 숫자 형태가 아닙니다.');
+                            }
+
+                            $where .= $leftCondition . ' ' . $operator . ' ';
+                            $param[$bindKey] = $optionalValue['value'];
+                            $where .= $bindKey;
+                            break;
+                        case 'ALPHABET':
+                            if (!ctype_alpha($optionalValue['value'])) {
+                                throw new Exception($optionalValue['value'] . ' 는 알파벳 형태가 아닙니다.');
+                            }
+
+                            $where .= $leftCondition . ' ' . $operator . ' ';
+                            $param[$bindKey] = $optionalValue['value'];
+                            $where .= $bindKey;
+                            break;
+                        case 'PHONE':
+                            if (!preg_match("/^[0-9]{3}-[0-9]{4}-[0-9]{4}$/", $optionalValue['value'])) {
+                                throw new Exception($optionalValue['value'] . ' 는 하이픈을 포함한 전화번호 형식이 아닙니다.');
+                            }
+
+                            $where .= $leftCondition . ' ' . $operator . ' ';
+                            $param[$bindKey] = $optionalValue['value'];
+                            $where .= $bindKey;
+                            break;
+                        case 'EMAIL':
+                            if (!(filter_var($optionalValue['value'], FILTER_VALIDATE_EMAIL) && preg_match('/@.+\./', $optionalValue['value']))) {
+                                throw new Exception($optionalValue['value'] . ' 는 이메일 형식이 아닙니다.');
+                            }
+
+                            $where .= $leftCondition . ' ' . $operator . ' ';
+                            $param[$bindKey] = $optionalValue['value'];
+                            $where .= $bindKey;
                             break;
                     }
                 } else {
@@ -270,7 +388,7 @@ class QueryBuilder
      * @param string $leftCondition WHERE 에서 왼쪽 조건, 보통은 칼럼 이름
      * @param string $operator 조건 연산자
      * @param int|string|array|null $rightCondition WHERE 에서 오른쪽 조건
-     * @param string $combinators AND, OR, END OR 사용 가능, 보통은 AND, OR 사용한 경우 END OR 필요
+     * @param string $combinators AND, OR, END OR 사용 가능, OR 사용한 경우 END OR 필요
      * @return $this 메소드 체인으로 사용 가능
      * @throws Exception
      */
@@ -332,7 +450,7 @@ class QueryBuilder
      * @param string $leftCondition HAVING 에서 왼쪽 조건, 보통은 칼럼 이름
      * @param string $operator 조건 연산자
      * @param int|string|array|null $rightCondition HAVING 에서 오른쪽 조건
-     * @param string $combinators AND, OR, END OR 사용 가능, 보통은 AND, OR 사용한 경우 END OR 필요
+     * @param string $combinators AND, OR, END OR 사용 가능, OR 사용한 경우 END OR 필요
      * @return $this 메소드 체인으로 사용 가능
      * @throws Exception
      */
@@ -396,6 +514,7 @@ class QueryBuilder
      *
      * @param array $set 칼럼 이름 및 값을 MAP 형태의 배열로 작성
      * @return $this 메소드 체인으로 사용 가능
+     * @throws Exception
      */
     public function insert(array $set): static
     {
@@ -419,7 +538,33 @@ class QueryBuilder
                         // 암호화 검증 : password_verify('PASSWORD', $hashValue)
                         $this->param[$bindKey] = password_hash($optionalValue['value'], PASSWORD_DEFAULT);
                         break;
-                    default:
+                    case 'NUMBER':
+                        if (!is_numeric($optionalValue['value'])) {
+                            throw new Exception($optionalValue['value'] . ' 는 숫자 형태가 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
+                        break;
+                    case 'ALPHABET':
+                        if (!ctype_alpha($optionalValue['value'])) {
+                            throw new Exception($optionalValue['value'] . ' 는 알파벳 형태가 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
+                        break;
+                    case 'PHONE':
+                        if (!preg_match("/^[0-9]{3}-[0-9]{4}-[0-9]{4}$/", $optionalValue['value'])) {
+                            throw new Exception($optionalValue['value'] . ' 는 하이픈을 포함한 전화번호 형식이 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
+                        break;
+                    case 'EMAIL':
+                        if (!(filter_var($optionalValue['value'], FILTER_VALIDATE_EMAIL) && preg_match('/@.+\./', $optionalValue['value']))) {
+                            throw new Exception($optionalValue['value'] . ' 는 이메일 형식이 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
                         break;
                 }
             }
@@ -442,6 +587,7 @@ class QueryBuilder
      *
      * @param array $set 칼럼 이름 및 값을 MAP 형태의 배열로 작성
      * @return $this 메소드 체인으로 사용 가능
+     * @throws Exception
      */
     public function upsert(array $set): static
     {
@@ -468,7 +614,33 @@ class QueryBuilder
                         // 암호화 검증 : password_verify('PASSWORD', $hashValue)
                         $this->param[$bindKey] = password_hash($optionalValue['value'], PASSWORD_DEFAULT);
                         break;
-                    default:
+                    case 'NUMBER':
+                        if (!is_numeric($optionalValue['value'])) {
+                            throw new Exception($optionalValue['value'] . ' 는 숫자 형태가 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
+                        break;
+                    case 'ALPHABET':
+                        if (!ctype_alpha($optionalValue['value'])) {
+                            throw new Exception($optionalValue['value'] . ' 는 알파벳 형태가 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
+                        break;
+                    case 'PHONE':
+                        if (!preg_match("/^[0-9]{3}-[0-9]{4}-[0-9]{4}$/", $optionalValue['value'])) {
+                            throw new Exception($optionalValue['value'] . ' 는 하이픈을 포함한 전화번호 형식이 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
+                        break;
+                    case 'EMAIL':
+                        if (!(filter_var($optionalValue['value'], FILTER_VALIDATE_EMAIL) && preg_match('/@.+\./', $optionalValue['value']))) {
+                            throw new Exception($optionalValue['value'] . ' 는 이메일 형식이 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
                         break;
                 }
             }
@@ -492,6 +664,7 @@ class QueryBuilder
      *
      * @param array $set 칼럼 이름 및 값을 MAP 형태의 배열로 작성
      * @return $this 메소드 체인으로 사용 가능
+     * @throws Exception
      */
     public function update(array $set): static
     {
@@ -515,7 +688,33 @@ class QueryBuilder
                         // 암호화 검증 : password_verify('PASSWORD', $hashValue)
                         $this->param[$bindKey] = password_hash($optionalValue['value'], PASSWORD_DEFAULT);
                         break;
-                    default:
+                    case 'NUMBER':
+                        if (!is_numeric($optionalValue['value'])) {
+                            throw new Exception($optionalValue['value'] . ' 는 숫자 형태가 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
+                        break;
+                    case 'ALPHABET':
+                        if (!ctype_alpha($optionalValue['value'])) {
+                            throw new Exception($optionalValue['value'] . ' 는 알파벳 형태가 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
+                        break;
+                    case 'PHONE':
+                        if (!preg_match("/^[0-9]{3}-[0-9]{4}-[0-9]{4}$/", $optionalValue['value'])) {
+                            throw new Exception($optionalValue['value'] . ' 는 하이픈을 포함한 전화번호 형식이 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
+                        break;
+                    case 'EMAIL':
+                        if (!(filter_var($optionalValue['value'], FILTER_VALIDATE_EMAIL) && preg_match('/@.+\./', $optionalValue['value']))) {
+                            throw new Exception($optionalValue['value'] . ' 는 이메일 형식이 아닙니다.');
+                        }
+
+                        $this->param[$bindKey] = $optionalValue['value'];
                         break;
                 }
             }
@@ -701,15 +900,31 @@ class QueryBuilder
     }
 
     /**
-     * TODO: 실행 할 쿼리 출력
      * MySQL 실행 로그 확인을 위해서는 설정 값 확인 필요
      * SHOW VARIABLES LIKE 'general%'
      * SET GLOBAL general_log = on
      *
-     * @return void
+     * @return array
+     * @throws Exception
      */
-    public function debug()
+    public function debug(): array
     {
+        // 생성 된 쿼리 문자열
+        $query = $this->queryMaker();
 
+        $stmt = $this->pdo->prepare($query);
+
+        // 파라미터로 별도 저장해두었던 배열값 바인딩 처리
+        foreach ($this->param as $key => $value) {
+            $stmt->bindParam($key, $this->param[$key]);
+        }
+
+        $return['query'] = $stmt->queryString;
+
+        ob_start();
+        $stmt->debugDumpParams();
+        $return['dump'] = ob_get_contents();
+        ob_end_clean();
+        return $return;
     }
 }

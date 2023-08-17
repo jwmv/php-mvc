@@ -8,15 +8,14 @@ set_error_handler(/** @throws ErrorException */function($errNo, $errStr, $errFil
     throw new ErrorException($errStr, $errNo, 0, $errFile, $errLine);
 });
 
-// TODO: 모든 에러 및 예외처리
-//       PHP 에러 및 MySQL 에러 코드값이 다른 점 참고
 set_exception_handler(function(Throwable $exception) {
-    echo '<pre>';
-    echo '$exception->getMessage() : ' . $exception->getMessage() . '<br/>';
-    echo '$exception->getCode() : ' . $exception->getCode() . '<br/>';
-    echo '$exception->getFile() : ' . basename($exception->getFile()) . '<br/>';
-    echo '$exception->getLine() : ' . $exception->getLine() . '<br/>';
-    echo '</pre>';
+    header('Content-type: application/json');
+    exit(json_encode([
+        'message' => $exception->getMessage(),
+        'code' => $exception->getCode(),
+        'filename' => basename($exception->getFile()),
+        'line' => $exception->getLine()
+    ], JSON_UNESCAPED_UNICODE));
 });
 
 // 클래스 인스턴스가 생성 될 때, namespace 및 class 이름 받아서 인클루딩
@@ -32,4 +31,4 @@ spl_autoload_register(/** @throws Exception */ function($class) {
 });
 
 // 라우터 실행
-new \Controller\Router();
+new Controller\Router();

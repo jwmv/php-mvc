@@ -2,192 +2,102 @@
 
 namespace Controller;
 
+use Controller\Sample\SampleController;
+use Controller\Sample\SampleViewController;
 use Exception;
-use FilesystemIterator;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
 
 class Router
 {
-    /**
-     * URL 주소를 ['키' => '값', ...] 형태의 배열로 저장
-     * EX) /sports/soccer/player/7
-     *     -> ['sports' => 'soccer', 'player' => '7']
-     *
-     * @var array
-     */
-    private array $parameterMap = [];
-
-    /**
-     * URL 주소의 첫번째 Path 값을 컨트롤러 이름으로 사용하고, 컨트롤러 폴더 내에 파일이 존재하는 지 확인
-     * EX) /sports/soccer/player/7
-     *     -> /SportsController.php
-     *
-     * @var string
-     */
-    private string $controller = 'Index';
-
-    /**
-     * 컨트롤러 내에 있어야 하는 함수
-     * EX1) /sports/soccer/player/7
-     *      -> SportsController->player()
-     * EX2) /auth/login
-     *      -> AuthController->login()
-     * EX3) /auth
-     *      -> AuthController->auth()
-     *
-     * @var string
-     */
-    private string $executableFn = '';
-
-    /**
-     * Controller 폴더 내에 존재하는 컨트롤러 경로 및 파일명
-     *
-     * @var string
-     */
-    private string $controllerClass = '';
-
-    /**
-     * @throws Exception
-     */
     public function __construct()
     {
-        /**
-         * URL 주소에서 각각의 Path 값을 컨트롤러명, 함수명 및 변수값으로 사용할 수 있도록 파싱
-         */
-        $this->parseRequestUri();
-
-        /**
-         * 컨트롤러 폴더 내에서 파싱 된 컨트롤러명의 파일이 있는 지 검색
-         */
-        $this->findControllerInDirectory();
-
-        /**
-         * 함수 및 데이터를 전달받아서 검색 된 컨트롤러에 생성자로 전달
-         */
-        $this->instantiateClass();
+        // POST, GET, PATCH, PUT, DELETE 중 요청 온 메소드 함수 실행
+        $this->{strtolower($_SERVER['REQUEST_METHOD'])}()->end();
     }
 
-    /**
-     * @return void
-     */
-    private function parseRequestUri(): void
+    private function post(): Router
     {
-        // URL 주소에서 각각의 Path 값을 배열화
-        // EX) /sports/soccer/player/7
-        //     -> [0 => 'sports', 1 => 'soccer', 2 => 'player', 3 => '7']
-        $path =
-            array_values(
-                array_filter(
-                    array_map('trim', explode('/', parse_url($_SERVER['REQUEST_URI'])['path']))
-                )
-            )
-        ;
+        // $this->execute('/foo', SampleController::class, 'createFoo');
+        $this->execute('/foo', SampleController::class, 'createFooWithQB');
+        $this->execute('/bar', SampleController::class, 'createBarWithFooId');
+        $this->execute('/foobar', SampleController::class, 'createFooBarWithQB');
 
-        // URL 주소의 첫번째 Path 값을 컨트롤러 이름으로 사용
-        // '/' 으로 요청한 경우 Index 컨트롤러 사용
-        if (!empty($path[0])) {
-            $this->controller = ucfirst($path[0]);
-        }
-
-        foreach ($path as $i => $p) {
-            if ($i % 2 === 0) {
-                // 주소를 ['키' => '값', ...] 형태의 배열로 저장
-                $this->parameterMap[$p] = !empty($path[$i + 1]) ? $path[$i + 1] : '';
-
-                // 짝수 주소들은 컨트롤러에서 실행시킬 함수명으로 사용
-                if ($i > 0) {
-                    $this->executableFn .= ucfirst($p);
-                }
-            }
-        }
-
-        // Path 값이 2개 이하인 경우, 마지막 Path 값을 함수명으로 사용
-        // EX) /auth/login
-        //     -> AuthController->login()
-        // EX) /api/getUserById
-        //     -> ApiController->getUserById()
-        if (!empty($path) && count($path) <= 2) {
-            $this->executableFn = $path[array_key_last($path)];
-        }
+        return $this;
     }
 
-    /**
-     * @return void
-     */
-    private function findControllerInDirectory(): void
+    private function get(): Router
     {
-        // 컨트롤러 디렉토리 내의 모든 파일
-        $files =
-            new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator(
-                    __DIR__,
-                    FilesystemIterator::SKIP_DOTS | FilesystemIterator::UNIX_PATHS /*| FilesystemIterator::KEY_AS_FILENAME*/)
-            );
+        $this->execute('/foo', SampleController::class, 'readFooAll');
+        $this->execute('/foo/{fooId}', SampleController::class, 'readFooById');
+        $this->execute('/bar', SampleController::class, 'readBarAll');
+        $this->execute('/bar/{barId}', SampleController::class, 'readBarById');
+        $this->execute('/foobar/{fooId}', SampleController::class, 'readFooBarByFooIdWithQB');
 
-        // 최상위 경로에 있는 파일부터 검색
-        $files->rewind();
+        $this->execute('/sample/view', SampleViewController::class, 'index');
 
-        // 파일 검색 위치가 유효하면 계속 실행
-        while ($files->valid()) {
-            // $files->key() 값은 파일 경로 및 확장자를 포함하는 파일명 값
-            // URL 주소의 첫번째 Path 값이 컨트롤러 파일로 생성되어 있는 지 확인
-            if (strpos($files->key(), '/' . $this->controller . 'Controller.php')) {
-                // 파일 경로에서 Controller/ 부터 값을 가져와서 namespace\\class 형식으로 변환
-                // 파일 경로들은 namespace 값으로 사용
-                $this->controllerClass =
-                    str_replace(
-                        '/',
-                        '\\',
-                        substr(
-                            $files->key(),
-                            strpos(
-                                $files->key(),
-                                '\\Controller/') + 1,
-                            -4
-                        )
-                    );
-                break;
-            }
+        return $this;
+    }
 
-            // 다음 파일 검색
-            $files->next();
+    private function patch(): Router
+    {
+
+        return $this;
+    }
+
+    private function put(): Router
+    {
+        $this->execute('/foo/{fooId}', SampleController::class, 'updateFooById');
+        $this->execute('/bar/{barId}', SampleController::class, 'updateBarById');
+
+        return $this;
+    }
+
+    private function delete(): Router
+    {
+        // $this->execute('/foo/{fooId}', SampleController::class, 'deleteFooById');
+        $this->execute('/foo/{fooId}', SampleController::class, 'deleteFooByIdWithQB');
+        $this->execute('/bar/{barId}', SampleController::class, 'deleteBarById');
+
+        return $this;
+    }
+
+    private function execute(string $resource, string $class, string $function): void
+    {
+        // {} 사이에 들어오는 값
+        $param = [];
+
+        // 요청 URL
+        $url = explode('/', parse_url($_SERVER['REQUEST_URI'])['path']);
+
+        // 요청 URL과 비교할 리소스
+        $resourceUrl = explode('/', $resource);
+
+        // 요청 URL과 리소스의 길이 비교
+        if (count($resourceUrl) !== count($url)) return;
+
+        // 리소스에서 {} 값을 따로 추출
+        $matchCount = preg_match_all('/{([^}]*)}/', $resource, $matches);
+
+        // 요청 URL과 {} 값의 길이 비교
+        if (count(array_diff_assoc($resourceUrl, $url)) !== $matchCount) return;
+
+        // 요청 URL에서 {} 값을 리소스에서 찾아 따로 저장
+        foreach ($matches[0] as $idx => $val) {
+            $key = array_search($val, $resourceUrl);
+            $param[$matches[1][$idx]] = $url[$key];
         }
+
+        // POST, PATCH, PUT, DELETE 메소드의 Body-Content
+        $body = json_decode(file_get_contents('php://input'), true) ?: [];
+
+        (new $class($body, $param))->$function();
+        exit;
     }
 
     /**
-     * @return void
      * @throws Exception
      */
-    private function instantiateClass(): void
+    private function end()
     {
-        // 컨트롤러가 존재하면 인스턴스 생성
-        if (class_exists($this->controllerClass)) {
-            // 'POST', 'GET', 'PATCH', 'PUT', 'DELETE' 등 요청 된 메소드 사용
-            $requestMethod = $_SERVER['REQUEST_METHOD'];
-
-            // $_POST, $_GET 같은 HTTP 메소드 변수가 없는 PATCH, PUT, DELETE 메소드의 경우, Body Content 값을 읽어서 사용
-            $bodyContent = json_decode(file_get_contents('php://input'), true) ?: [];
-
-            // 클래스에 실행 가능한 함수가 존재하는 지 확인
-            $isExecutable = method_exists($this->controllerClass, $requestMethod . $this->executableFn);
-
-            // 클래스에 실행 가능한 함수가 존재하지 않으면
-            if (!$isExecutable) {
-                // executableFn 으로 받은 값을 parameterMap 에서 검색해서 해당 key 값을 executableFn 으로 사용
-                $this->executableFn = array_search($this->executableFn, $this->parameterMap);
-
-                // 클래스에 실행 가능한 함수가 존재하는 지 다시 확인
-                $isExecutable = !empty($this->executableFn) && method_exists($this->controllerClass, $requestMethod . $this->executableFn);
-
-                if (!$isExecutable) {
-                    throw new Exception('Function not exists. [' . strtoupper($requestMethod) . strtoupper($this->executableFn) . ']', 400);
-                }
-            }
-
-            new $this->controllerClass($requestMethod, $bodyContent, $this->parameterMap, $this->executableFn);
-        } else {
-            throw new Exception('Class not exists.', 400);
-        }
+        throw new Exception('\'' . $_SERVER['REQUEST_METHOD'] . ' ' . parse_url($_SERVER['REQUEST_URI'])['path'] . '\' Not Found.', 404);
     }
 }
